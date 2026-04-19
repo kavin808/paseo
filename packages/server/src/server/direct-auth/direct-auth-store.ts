@@ -13,7 +13,6 @@ const DirectAuthTokenRecordSchema = z.object({
   tokenHash: z.string().min(1),
   createdAt: z.string().min(1),
   expiresAt: z.string().nullable(),
-  revokedAt: z.string().nullable(),
   lastUsedAt: z.string().nullable(),
 });
 

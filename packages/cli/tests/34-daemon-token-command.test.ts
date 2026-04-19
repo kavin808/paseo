@@ -7,8 +7,8 @@ import { join } from "node:path";
 import { Command } from "commander";
 import {
   runTokenCreateCommand,
+  runTokenDeleteCommand,
   runTokenListCommand,
-  runTokenRevokeCommand,
   runTokenRotateCommand,
 } from "../src/commands/daemon/token.ts";
 
@@ -54,16 +54,20 @@ try {
   assert.strictEqual(rotated.id, created.id, "rotate should preserve token id");
   assert(rotated.token.startsWith("paseo_dt_"), "rotate should return a replacement token");
   assert.notStrictEqual(rotated.token, created.token, "rotate should issue a new token");
-  assert.strictEqual(rotated.revokedAt, "-", "rotated token should remain active");
   console.log("✓ rotate keeps id and returns a new token\n");
 
-  console.log("Test 4: revoke marks token revoked");
-  const revoke = await runTokenRevokeCommand(created.id, { json: true, home: paseoHome }, command);
-  assert.strictEqual(revoke.type, "single");
-  const revoked = revoke.data;
-  assert.strictEqual(revoked.id, created.id, "revoke should target the same token id");
-  assert.notStrictEqual(revoked.revokedAt, "-", "revoke should set revokedAt");
-  console.log("✓ revoke marks token revoked\n");
+  console.log("Test 4: delete removes token from local store");
+  const deleted = await runTokenDeleteCommand(created.id, { json: true, home: paseoHome }, command);
+  assert.strictEqual(deleted.type, "single");
+  assert.strictEqual(deleted.data.id, created.id, "delete should target the same token id");
+  const listAfterDelete = await runTokenListCommand({ json: true, home: paseoHome }, command);
+  assert.strictEqual(listAfterDelete.type, "list");
+  assert.strictEqual(
+    listAfterDelete.data.some((entry) => entry.id === created.id),
+    false,
+    "deleted token should disappear from ls",
+  );
+  console.log("✓ delete removes token from local store\n");
 } finally {
   await rm(paseoHome, { recursive: true, force: true });
 }

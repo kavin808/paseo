@@ -16,7 +16,6 @@ type DirectAuthTokenRow = {
   label: string;
   createdAt: string;
   expiresAt: string;
-  revokedAt: string;
   lastUsedAt: string;
 };
 
@@ -42,7 +41,6 @@ const tokenListSchema: OutputSchema<DirectAuthTokenRow> = {
     { header: "LABEL", field: "label" },
     { header: "CREATED", field: "createdAt" },
     { header: "EXPIRES", field: "expiresAt" },
-    { header: "REVOKED", field: "revokedAt" },
     { header: "LAST USED", field: "lastUsedAt" },
   ],
 };
@@ -56,7 +54,6 @@ const tokenSecretSchema: OutputSchema<DirectAuthTokenSecretRow> = {
     { header: "LABEL", field: "label" },
     { header: "CREATED", field: "createdAt" },
     { header: "EXPIRES", field: "expiresAt" },
-    { header: "REVOKED", field: "revokedAt" },
     { header: "LAST USED", field: "lastUsedAt" },
   ],
 };
@@ -71,7 +68,6 @@ function toTokenRow(input: {
   label: string | null;
   createdAt: string;
   expiresAt: string | null;
-  revokedAt: string | null;
   lastUsedAt: string | null;
 }): DirectAuthTokenRow {
   return {
@@ -80,7 +76,6 @@ function toTokenRow(input: {
     label: input.label ?? "-",
     createdAt: input.createdAt,
     expiresAt: input.expiresAt ?? "-",
-    revokedAt: input.revokedAt ?? "-",
     lastUsedAt: input.lastUsedAt ?? "-",
   };
 }
@@ -142,7 +137,7 @@ export async function runTokenCreateCommand(
   };
 }
 
-export async function runTokenRevokeCommand(
+export async function runTokenDeleteCommand(
   id: string,
   options: TokenCommandOptions,
   _command: Command,
@@ -153,7 +148,7 @@ export async function runTokenRevokeCommand(
   }
 
   const service = resolveTokenService(options);
-  const record = service.revokeToken(normalizedId);
+  const record = service.deleteToken(normalizedId);
   if (!record) {
     throw toCommandError("TOKEN_NOT_FOUND", `Direct auth token not found: ${normalizedId}`);
   }
@@ -213,11 +208,11 @@ export function tokenCommand(): Command {
 
   addJsonOption(
     token
-      .command("revoke")
-      .description("Revoke a direct auth token")
+      .command("delete")
+      .description("Delete a direct auth token")
       .argument("<id>", "Token id")
       .option("--home <path>", "Paseo home directory (default: ~/.paseo)"),
-  ).action(withOutput(runTokenRevokeCommand));
+  ).action(withOutput(runTokenDeleteCommand));
 
   addJsonOption(
     token

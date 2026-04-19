@@ -533,9 +533,9 @@ type CreateDirectAuthTokenResponse = Extract<
   SessionOutboundMessage,
   { type: "create_direct_auth_token_response" }
 >;
-type RevokeDirectAuthTokenResponse = Extract<
+type DeleteDirectAuthTokenResponse = Extract<
   SessionOutboundMessage,
-  { type: "revoke_direct_auth_token_response" }
+  { type: "delete_direct_auth_token_response" }
 >;
 type RotateDirectAuthTokenResponse = Extract<
   SessionOutboundMessage,
@@ -547,7 +547,7 @@ type CorrelatedResponseMessage =
   | SetDaemonConfigResponse
   | ListDirectAuthTokensResponse
   | CreateDirectAuthTokenResponse
-  | RevokeDirectAuthTokenResponse
+  | DeleteDirectAuthTokenResponse
   | RotateDirectAuthTokenResponse;
 type CorrelatedResponseType = CorrelatedResponseMessage["type"];
 type CorrelatedResponsePayload<TType extends CorrelatedResponseType> = Extract<
@@ -2875,7 +2875,6 @@ export class DaemonClient {
       label: string | null;
       createdAt: string;
       expiresAt: string | null;
-      revokedAt: string | null;
       lastUsedAt: string | null;
     }>;
   }> {
@@ -2905,7 +2904,6 @@ export class DaemonClient {
       label: string | null;
       createdAt: string;
       expiresAt: string | null;
-      revokedAt: string | null;
       lastUsedAt: string | null;
     };
   }> {
@@ -2922,7 +2920,7 @@ export class DaemonClient {
     });
   }
 
-  async revokeDirectAuthToken(
+  async deleteDirectAuthToken(
     id: string,
     requestId?: string,
   ): Promise<{
@@ -2933,17 +2931,16 @@ export class DaemonClient {
       label: string | null;
       createdAt: string;
       expiresAt: string | null;
-      revokedAt: string | null;
       lastUsedAt: string | null;
     };
   }> {
     return this.sendCorrelatedSessionRequest({
       requestId,
       message: {
-        type: "revoke_direct_auth_token_request",
+        type: "delete_direct_auth_token_request",
         id,
       },
-      responseType: "revoke_direct_auth_token_response",
+      responseType: "delete_direct_auth_token_response",
       timeout: 10000,
     });
   }
@@ -2960,7 +2957,6 @@ export class DaemonClient {
       label: string | null;
       createdAt: string;
       expiresAt: string | null;
-      revokedAt: string | null;
       lastUsedAt: string | null;
     };
   }> {

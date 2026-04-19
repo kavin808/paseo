@@ -207,7 +207,7 @@ describe("Session direct auth token management", () => {
     expect(listMessage?.payload.tokens[0]).not.toHaveProperty("tokenHash");
   });
 
-  it("revokes and rotates tokens through session messages", async () => {
+  it("deletes and rotates tokens through session messages", async () => {
     const { session, directAuthService, onMessage } = createSessionForDirectAuthTests();
     const issued = directAuthService.issueToken({ label: "cli" });
 
@@ -227,25 +227,25 @@ describe("Session direct auth token management", () => {
     });
 
     await session.handleMessage({
-      type: "revoke_direct_auth_token_request",
-      requestId: "req_revoke",
+      type: "delete_direct_auth_token_request",
+      requestId: "req_delete",
       id: issued.record.id,
     });
 
-    const revokeMessage = onMessage.mock.calls[1]?.[0];
-    expect(revokeMessage?.type).toBe("revoke_direct_auth_token_response");
-    expect(revokeMessage?.payload.record.revokedAt).not.toBeNull();
+    const deleteMessage = onMessage.mock.calls[1]?.[0];
+    expect(deleteMessage?.type).toBe("delete_direct_auth_token_response");
+    expect(deleteMessage?.payload.record.id).toBe(issued.record.id);
     expect(directAuthService.authenticateToken(rotateMessage.payload.token)).toEqual({
       ok: false,
-      reason: "revoked",
+      reason: "invalid",
     });
   });
 
-  it("returns rpc_error when revoking a missing token", async () => {
+  it("returns rpc_error when deleting a missing token", async () => {
     const { session, onMessage } = createSessionForDirectAuthTests();
 
     await session.handleMessage({
-      type: "revoke_direct_auth_token_request",
+      type: "delete_direct_auth_token_request",
       requestId: "req_missing",
       id: "missing-token",
     });
@@ -254,7 +254,7 @@ describe("Session direct auth token management", () => {
       type: "rpc_error",
       payload: {
         requestId: "req_missing",
-        requestType: "revoke_direct_auth_token_request",
+        requestType: "delete_direct_auth_token_request",
         error: "Request failed: Direct auth token not found: missing-token",
         code: "handler_error",
       },

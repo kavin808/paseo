@@ -7,13 +7,12 @@ export interface DirectAuthTokenRecord {
   tokenHash: string;
   createdAt: string;
   expiresAt: string | null;
-  revokedAt: string | null;
   lastUsedAt: string | null;
 }
 
 export type DirectAuthAuthenticateResult =
   | { ok: true; record: DirectAuthTokenRecord }
-  | { ok: false; reason: "invalid" | "expired" | "revoked" };
+  | { ok: false; reason: "invalid" | "expired" };
 
 export interface IssueDirectAuthTokenInput {
   kind?: DirectAuthTokenKind;

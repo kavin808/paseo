@@ -1528,14 +1528,14 @@ export class Session {
             }
             break;
 
-          case "revoke_direct_auth_token_request":
+          case "delete_direct_auth_token_request":
             {
-              const record = this.requireDirectAuthService().revokeToken(msg.id);
+              const record = this.requireDirectAuthService().deleteToken(msg.id);
               if (!record) {
                 throw new Error(`Direct auth token not found: ${msg.id}`);
               }
               this.emit({
-                type: "revoke_direct_auth_token_response",
+                type: "delete_direct_auth_token_response",
                 payload: {
                   requestId: msg.requestId,
                   record: this.toDirectAuthTokenSummary(record),
@@ -2407,7 +2407,6 @@ export class Session {
       label: record.label,
       createdAt: record.createdAt,
       expiresAt: record.expiresAt,
-      revokedAt: record.revokedAt,
       lastUsedAt: record.lastUsedAt,
     };
   }

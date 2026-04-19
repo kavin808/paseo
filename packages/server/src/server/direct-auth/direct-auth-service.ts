@@ -31,10 +31,6 @@ function isExpired(record: DirectAuthTokenRecord, now: Date): boolean {
   return record.expiresAt !== null && Date.parse(record.expiresAt) <= now.getTime();
 }
 
-function isRevoked(record: DirectAuthTokenRecord): boolean {
-  return record.revokedAt !== null;
-}
-
 export class DirectAuthService {
   private readonly logger: pino.Logger;
   private readonly store: DirectAuthStore;
@@ -43,8 +39,7 @@ export class DirectAuthService {
 
   constructor(options: DirectAuthServiceOptions) {
     this.logger =
-      options.logger?.child({ component: "direct-auth-service" }) ??
-      pino({ enabled: false });
+      options.logger?.child({ component: "direct-auth-service" }) ?? pino({ enabled: false });
     this.store = new DirectAuthStore(this.logger, options.paseoHome);
     this.now = options.now ?? (() => new Date());
     this.randomTokenBytes = options.randomTokenBytes ?? randomBytes;
@@ -65,7 +60,6 @@ export class DirectAuthService {
         typeof input.ttlMs === "number" && input.ttlMs > 0
           ? new Date(now.getTime() + input.ttlMs).toISOString()
           : null,
-      revokedAt: null,
       lastUsedAt: null,
     };
     const tokens = this.store.loadTokens();
@@ -93,9 +87,6 @@ export class DirectAuthService {
     if (!match) {
       return { ok: false, reason: "invalid" };
     }
-    if (isRevoked(match)) {
-      return { ok: false, reason: "revoked" };
-    }
     if (isExpired(match, now)) {
       return { ok: false, reason: "expired" };
     }
@@ -104,34 +95,25 @@ export class DirectAuthService {
       ...match,
       lastUsedAt: now.toISOString(),
     };
-    this.store.saveTokens(tokens.map((record) => (record.id === match.id ? updatedRecord : record)));
+    this.store.saveTokens(
+      tokens.map((record) => (record.id === match.id ? updatedRecord : record)),
+    );
     return { ok: true, record: updatedRecord };
   }
 
-  revokeToken(id: string): DirectAuthTokenRecord | null {
+  deleteToken(id: string): DirectAuthTokenRecord | null {
     const normalizedId = id.trim();
     if (normalizedId.length === 0) {
       return null;
     }
 
-    const nowIso = this.now().toISOString();
-    let revoked: DirectAuthTokenRecord | null = null;
-    const next = this.store.loadTokens().map((record) => {
-      if (record.id !== normalizedId || record.revokedAt !== null) {
-        return record;
-      }
-      revoked = {
-        ...record,
-        revokedAt: nowIso,
-      };
-      return revoked;
-    });
-
-    if (!revoked) {
+    const tokens = this.store.loadTokens();
+    const deleted = tokens.find((record) => record.id === normalizedId) ?? null;
+    if (!deleted) {
       return null;
     }
-    this.store.saveTokens(next);
-    return revoked;
+    this.store.saveTokens(tokens.filter((record) => record.id !== normalizedId));
+    return deleted;
   }
 
   rotateToken(id: string): RotateDirectAuthTokenResult | null {
@@ -153,7 +135,6 @@ export class DirectAuthService {
         tokenHash: computeTokenHash(salt, token),
         createdAt: now.toISOString(),
         expiresAt: record.expiresAt,
-        revokedAt: null,
         lastUsedAt: null,
       };
       return rotated;

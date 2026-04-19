@@ -981,12 +981,7 @@ export class VoiceAssistantWebSocketServer {
 
     return {
       code: WS_CLOSE_AUTH_FAILED,
-      reason:
-        result.reason === "expired"
-          ? "Expired token"
-          : result.reason === "revoked"
-            ? "Revoked token"
-            : "Invalid token",
+      reason: result.reason === "expired" ? "Expired token" : "Invalid token",
     };
   }
 
@@ -1733,11 +1728,7 @@ function isLoopbackRemoteAddress(address: string | undefined): boolean {
   if (!address) {
     return true;
   }
-  return (
-    address === "127.0.0.1" ||
-    address === "::1" ||
-    address === "::ffff:127.0.0.1"
-  );
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }
 
 function stringifyCloseReason(reason: unknown): string | null {

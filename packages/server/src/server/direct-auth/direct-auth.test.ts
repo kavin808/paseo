@@ -60,7 +60,7 @@ describe("DirectAuthService", () => {
     });
   });
 
-  test("rejects revoked tokens", () => {
+  test("deleted tokens become invalid", () => {
     const service = new DirectAuthService({
       logger: createTestLogger(),
       paseoHome: makeTempHome(),
@@ -68,12 +68,12 @@ describe("DirectAuthService", () => {
     });
 
     const issued = service.issueToken();
-    const revoked = service.revokeToken(issued.record.id);
-    expect(revoked?.revokedAt).toBe("2026-04-19T00:00:00.000Z");
+    const deleted = service.deleteToken(issued.record.id);
+    expect(deleted?.id).toBe(issued.record.id);
 
     expect(service.authenticateToken(issued.token)).toEqual({
       ok: false,
-      reason: "revoked",
+      reason: "invalid",
     });
   });
 

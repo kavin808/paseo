@@ -91,7 +91,7 @@ Do not depend on `npm run build --workspace=@getpaseo/cli` as the only gate for 
 
 Important:
 
-- `daemon token create/ls/revoke/rotate` are local management commands against `PASEO_HOME`
+- `daemon token create/ls/delete/rotate` are local management commands against `PASEO_HOME`
 - they do not need an existing direct-auth bearer token
 - normal direct CLI commands still connect to the daemon and do require bearer auth when enabled
 
@@ -131,10 +131,10 @@ Rotate a token:
 PASEO_HOME=~/.paseo-direct-auth npm run cli -- daemon token rotate <token-id> --json
 ```
 
-Revoke a token:
+Delete a token:
 
 ```bash
-PASEO_HOME=~/.paseo-direct-auth npm run cli -- daemon token revoke <token-id> --json
+PASEO_HOME=~/.paseo-direct-auth npm run cli -- daemon token delete <token-id> --json
 ```
 
 ### Direct connection verification
@@ -156,7 +156,7 @@ Expected:
 - `create` returns plaintext token once
 - `ls` returns metadata only
 - `rotate` returns a new plaintext token
-- `revoke` invalidates the token server-side
+- `delete` removes the token record from local daemon state
 - token management continues to work even after daemon bearer mode is enabled, because it does not go through the direct websocket auth path
 - direct CLI commands work when valid token is supplied
 

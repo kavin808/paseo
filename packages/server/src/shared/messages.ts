@@ -815,7 +815,6 @@ export const DirectAuthTokenSummarySchema = z.object({
   label: z.string().nullable(),
   createdAt: z.string().min(1),
   expiresAt: z.string().nullable(),
-  revokedAt: z.string().nullable(),
   lastUsedAt: z.string().nullable(),
 });
 
@@ -832,8 +831,8 @@ export const CreateDirectAuthTokenRequestMessageSchema = z.object({
   ttlMs: z.number().int().positive().nullable().optional(),
 });
 
-export const RevokeDirectAuthTokenRequestMessageSchema = z.object({
-  type: z.literal("revoke_direct_auth_token_request"),
+export const DeleteDirectAuthTokenRequestMessageSchema = z.object({
+  type: z.literal("delete_direct_auth_token_request"),
   requestId: z.string(),
   id: z.string().min(1),
 });
@@ -1564,7 +1563,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   SetDaemonConfigRequestMessageSchema,
   ListDirectAuthTokensRequestMessageSchema,
   CreateDirectAuthTokenRequestMessageSchema,
-  RevokeDirectAuthTokenRequestMessageSchema,
+  DeleteDirectAuthTokenRequestMessageSchema,
   RotateDirectAuthTokenRequestMessageSchema,
   DictationStreamStartMessageSchema,
   DictationStreamChunkMessageSchema,
@@ -2375,8 +2374,8 @@ export const CreateDirectAuthTokenResponseMessageSchema = z.object({
     .passthrough(),
 });
 
-export const RevokeDirectAuthTokenResponseMessageSchema = z.object({
-  type: z.literal("revoke_direct_auth_token_response"),
+export const DeleteDirectAuthTokenResponseMessageSchema = z.object({
+  type: z.literal("delete_direct_auth_token_response"),
   payload: z
     .object({
       requestId: z.string(),
@@ -3070,7 +3069,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentArchivedMessageSchema,
   ListDirectAuthTokensResponseMessageSchema,
   CreateDirectAuthTokenResponseMessageSchema,
-  RevokeDirectAuthTokenResponseMessageSchema,
+  DeleteDirectAuthTokenResponseMessageSchema,
   RotateDirectAuthTokenResponseMessageSchema,
   CloseItemsResponseSchema,
   CheckoutStatusResponseSchema,

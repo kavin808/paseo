@@ -26,7 +26,7 @@ Implemented behavior:
 Current direct auth close codes:
 
 - `4004` authentication required
-- `4005` invalid / expired / revoked token
+- `4005` invalid / expired token
 
 ### 2. Daemon token storage and validation
 
@@ -44,7 +44,6 @@ Stored metadata:
 - `label`
 - `createdAt`
 - `expiresAt`
-- `revokedAt`
 - `lastUsedAt`
 
 Storage location:
@@ -99,7 +98,7 @@ The daemon CLI now exposes token lifecycle commands:
 
 - `paseo daemon token create`
 - `paseo daemon token ls`
-- `paseo daemon token revoke <id>`
+- `paseo daemon token delete <id>`
 - `paseo daemon token rotate <id>`
 
 Current command behavior:
@@ -108,7 +107,7 @@ Current command behavior:
 - they do not use the direct websocket session path
 - `create` returns a new plaintext token once
 - `ls` returns metadata only
-- `revoke` invalidates the token server-side
+- `delete` removes the token record from local daemon state
 - `rotate` replaces the token value and returns the new plaintext token once
 
 ### 6. App saved-token editing
@@ -126,7 +125,7 @@ Current UI behavior:
 Important distinction:
 
 - app `Remove token` removes the saved token from this device only
-- CLI `revoke token` invalidates the token on the daemon
+- CLI `delete token` removes the token from daemon state
 
 ## Current user flows
 
