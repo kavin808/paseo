@@ -78,6 +78,8 @@ import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
 import { deriveProjectSlug, readGitCommand } from "./workspace-git-metadata.js";
 import type { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import type { DaemonConfigStore } from "./daemon-config-store.js";
+import type { DirectAuthService } from "./direct-auth/direct-auth-service.js";
+import type { DirectAuthTokenRecord } from "./direct-auth/direct-auth-types.js";
 import type { WorkspaceGitRuntimeSnapshot, WorkspaceGitService } from "./workspace-git-service.js";
 
 import { buildProviderRegistry } from "./agent/provider-registry.js";
@@ -484,6 +486,7 @@ export type SessionOptions = {
   createAgentMcpTransport?: AgentMcpTransportFactory;
   workspaceGitService: WorkspaceGitService;
   daemonConfigStore: DaemonConfigStore;
+  directAuthService?: DirectAuthService | null;
   mcpBaseUrl?: string | null;
   stt: Resolvable<SpeechToTextProvider | null>;
   tts: Resolvable<TextToSpeechProvider | null>;
@@ -644,6 +647,7 @@ export class Session {
   private readonly github: GitHubService;
   private readonly workspaceGitService: WorkspaceGitService;
   private readonly daemonConfigStore: DaemonConfigStore;
+  private readonly directAuthService: DirectAuthService | null;
   private readonly mcpBaseUrl: string | null;
   private readonly downloadTokenStore: DownloadTokenStore;
   private readonly pushTokenStore: PushTokenStore;
@@ -723,6 +727,7 @@ export class Session {
       github,
       workspaceGitService,
       daemonConfigStore,
+      directAuthService,
       mcpBaseUrl,
       stt,
       tts,
@@ -765,6 +770,7 @@ export class Session {
     this.github = github ?? createGitHubService();
     this.workspaceGitService = workspaceGitService;
     this.daemonConfigStore = daemonConfigStore;
+    this.directAuthService = directAuthService ?? null;
     this.mcpBaseUrl = mcpBaseUrl ?? null;
     this.terminalManager = terminalManager;
     this.providerSnapshotManager = providerSnapshotManager ?? null;
@@ -1490,6 +1496,69 @@ export class Session {
                 config: this.daemonConfigStore.patch(msg.config),
               },
             });
+            break;
+
+          case "list_direct_auth_tokens_request":
+            this.emit({
+              type: "list_direct_auth_tokens_response",
+              payload: {
+                requestId: msg.requestId,
+                tokens: this.requireDirectAuthService()
+                  .listTokens()
+                  .map((record) => this.toDirectAuthTokenSummary(record)),
+              },
+            });
+            break;
+
+          case "create_direct_auth_token_request":
+            {
+              const { token, record } = this.requireDirectAuthService().issueToken({
+                kind: msg.kind,
+                label: msg.label,
+                ttlMs: msg.ttlMs,
+              });
+              this.emit({
+                type: "create_direct_auth_token_response",
+                payload: {
+                  requestId: msg.requestId,
+                  token,
+                  record: this.toDirectAuthTokenSummary(record),
+                },
+              });
+            }
+            break;
+
+          case "revoke_direct_auth_token_request":
+            {
+              const record = this.requireDirectAuthService().revokeToken(msg.id);
+              if (!record) {
+                throw new Error(`Direct auth token not found: ${msg.id}`);
+              }
+              this.emit({
+                type: "revoke_direct_auth_token_response",
+                payload: {
+                  requestId: msg.requestId,
+                  record: this.toDirectAuthTokenSummary(record),
+                },
+              });
+            }
+            break;
+
+          case "rotate_direct_auth_token_request":
+            {
+              const rotated = this.requireDirectAuthService().rotateToken(msg.id);
+              if (!rotated) {
+                throw new Error(`Direct auth token not found: ${msg.id}`);
+              }
+              this.emit({
+                type: "rotate_direct_auth_token_response",
+                payload: {
+                  requestId: msg.requestId,
+                  token: rotated.token,
+                  record: this.toDirectAuthTokenSummary(rotated.record),
+                },
+              });
+            }
             break;
 
           case "dictation_stream_start":
@@ -2322,6 +2391,25 @@ export class Session {
       return this.toVoiceFeatureUnavailableContext(modeReadiness);
     }
     return null;
+  }
+
+  private requireDirectAuthService(): DirectAuthService {
+    if (!this.directAuthService) {
+      throw new Error("Direct auth service is unavailable");
+    }
+    return this.directAuthService;
+  }
+
+  private toDirectAuthTokenSummary(record: DirectAuthTokenRecord) {
+    return {
+      id: record.id,
+      kind: record.kind,
+      label: record.label,
+      createdAt: record.createdAt,
+      expiresAt: record.expiresAt,
+      revokedAt: record.revokedAt,
+      lastUsedAt: record.lastUsedAt,
+    };
   }
 
   /**

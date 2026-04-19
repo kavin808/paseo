@@ -525,10 +525,30 @@ type SetDaemonConfigResponse = Extract<
   SessionOutboundMessage,
   { type: "set_daemon_config_response" }
 >;
+type ListDirectAuthTokensResponse = Extract<
+  SessionOutboundMessage,
+  { type: "list_direct_auth_tokens_response" }
+>;
+type CreateDirectAuthTokenResponse = Extract<
+  SessionOutboundMessage,
+  { type: "create_direct_auth_token_response" }
+>;
+type RevokeDirectAuthTokenResponse = Extract<
+  SessionOutboundMessage,
+  { type: "revoke_direct_auth_token_response" }
+>;
+type RotateDirectAuthTokenResponse = Extract<
+  SessionOutboundMessage,
+  { type: "rotate_direct_auth_token_response" }
+>;
 type CorrelatedResponseMessage =
   | Extract<SessionOutboundMessage, { payload: { requestId: string } }>
   | GetDaemonConfigResponse
-  | SetDaemonConfigResponse;
+  | SetDaemonConfigResponse
+  | ListDirectAuthTokensResponse
+  | CreateDirectAuthTokenResponse
+  | RevokeDirectAuthTokenResponse
+  | RotateDirectAuthTokenResponse;
 type CorrelatedResponseType = CorrelatedResponseMessage["type"];
 type CorrelatedResponsePayload<TType extends CorrelatedResponseType> = Extract<
   CorrelatedResponseMessage,
@@ -2843,6 +2863,114 @@ export class DaemonClient {
         config,
       },
       responseType: "set_daemon_config_response",
+      timeout: 10000,
+    });
+  }
+
+  async listDirectAuthTokens(requestId?: string): Promise<{
+    requestId: string;
+    tokens: Array<{
+      id: string;
+      kind: "persistent" | "temporary";
+      label: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+      revokedAt: string | null;
+      lastUsedAt: string | null;
+    }>;
+  }> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "list_direct_auth_tokens_request",
+      },
+      responseType: "list_direct_auth_tokens_response",
+      timeout: 10000,
+    });
+  }
+
+  async createDirectAuthToken(
+    input?: {
+      kind?: "persistent" | "temporary";
+      label?: string | null;
+      ttlMs?: number | null;
+    },
+    requestId?: string,
+  ): Promise<{
+    requestId: string;
+    token: string;
+    record: {
+      id: string;
+      kind: "persistent" | "temporary";
+      label: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+      revokedAt: string | null;
+      lastUsedAt: string | null;
+    };
+  }> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "create_direct_auth_token_request",
+        kind: input?.kind,
+        label: input?.label,
+        ttlMs: input?.ttlMs,
+      },
+      responseType: "create_direct_auth_token_response",
+      timeout: 10000,
+    });
+  }
+
+  async revokeDirectAuthToken(
+    id: string,
+    requestId?: string,
+  ): Promise<{
+    requestId: string;
+    record: {
+      id: string;
+      kind: "persistent" | "temporary";
+      label: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+      revokedAt: string | null;
+      lastUsedAt: string | null;
+    };
+  }> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "revoke_direct_auth_token_request",
+        id,
+      },
+      responseType: "revoke_direct_auth_token_response",
+      timeout: 10000,
+    });
+  }
+
+  async rotateDirectAuthToken(
+    id: string,
+    requestId?: string,
+  ): Promise<{
+    requestId: string;
+    token: string;
+    record: {
+      id: string;
+      kind: "persistent" | "temporary";
+      label: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+      revokedAt: string | null;
+      lastUsedAt: string | null;
+    };
+  }> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "rotate_direct_auth_token_request",
+        id,
+      },
+      responseType: "rotate_direct_auth_token_response",
       timeout: 10000,
     });
   }

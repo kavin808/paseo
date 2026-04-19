@@ -809,6 +809,41 @@ export const SetDaemonConfigRequestMessageSchema = z.object({
   config: MutableDaemonConfigPatchSchema,
 });
 
+export const DirectAuthTokenSummarySchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(["persistent", "temporary"]),
+  label: z.string().nullable(),
+  createdAt: z.string().min(1),
+  expiresAt: z.string().nullable(),
+  revokedAt: z.string().nullable(),
+  lastUsedAt: z.string().nullable(),
+});
+
+export const ListDirectAuthTokensRequestMessageSchema = z.object({
+  type: z.literal("list_direct_auth_tokens_request"),
+  requestId: z.string(),
+});
+
+export const CreateDirectAuthTokenRequestMessageSchema = z.object({
+  type: z.literal("create_direct_auth_token_request"),
+  requestId: z.string(),
+  kind: z.enum(["persistent", "temporary"]).optional(),
+  label: z.string().nullable().optional(),
+  ttlMs: z.number().int().positive().nullable().optional(),
+});
+
+export const RevokeDirectAuthTokenRequestMessageSchema = z.object({
+  type: z.literal("revoke_direct_auth_token_request"),
+  requestId: z.string(),
+  id: z.string().min(1),
+});
+
+export const RotateDirectAuthTokenRequestMessageSchema = z.object({
+  type: z.literal("rotate_direct_auth_token_request"),
+  requestId: z.string(),
+  id: z.string().min(1),
+});
+
 // ============================================================================
 // Dictation Streaming (lossless, resumable)
 // ============================================================================
@@ -1527,6 +1562,10 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   WaitForFinishRequestSchema,
   GetDaemonConfigRequestMessageSchema,
   SetDaemonConfigRequestMessageSchema,
+  ListDirectAuthTokensRequestMessageSchema,
+  CreateDirectAuthTokenRequestMessageSchema,
+  RevokeDirectAuthTokenRequestMessageSchema,
+  RotateDirectAuthTokenRequestMessageSchema,
   DictationStreamStartMessageSchema,
   DictationStreamChunkMessageSchema,
   DictationStreamFinishMessageSchema,
@@ -2315,6 +2354,48 @@ export const SetDaemonConfigResponseMessageSchema = z.object({
     .passthrough(),
 });
 
+export const ListDirectAuthTokensResponseMessageSchema = z.object({
+  type: z.literal("list_direct_auth_tokens_response"),
+  payload: z
+    .object({
+      requestId: z.string(),
+      tokens: z.array(DirectAuthTokenSummarySchema),
+    })
+    .passthrough(),
+});
+
+export const CreateDirectAuthTokenResponseMessageSchema = z.object({
+  type: z.literal("create_direct_auth_token_response"),
+  payload: z
+    .object({
+      requestId: z.string(),
+      token: z.string().min(1),
+      record: DirectAuthTokenSummarySchema,
+    })
+    .passthrough(),
+});
+
+export const RevokeDirectAuthTokenResponseMessageSchema = z.object({
+  type: z.literal("revoke_direct_auth_token_response"),
+  payload: z
+    .object({
+      requestId: z.string(),
+      record: DirectAuthTokenSummarySchema,
+    })
+    .passthrough(),
+});
+
+export const RotateDirectAuthTokenResponseMessageSchema = z.object({
+  type: z.literal("rotate_direct_auth_token_response"),
+  payload: z
+    .object({
+      requestId: z.string(),
+      token: z.string().min(1),
+      record: DirectAuthTokenSummarySchema,
+    })
+    .passthrough(),
+});
+
 export const AgentPermissionRequestMessageSchema = z.object({
   type: z.literal("agent_permission_request"),
   payload: z.object({
@@ -2987,6 +3068,10 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentPermissionResolvedMessageSchema,
   AgentDeletedMessageSchema,
   AgentArchivedMessageSchema,
+  ListDirectAuthTokensResponseMessageSchema,
+  CreateDirectAuthTokenResponseMessageSchema,
+  RevokeDirectAuthTokenResponseMessageSchema,
+  RotateDirectAuthTokenResponseMessageSchema,
   CloseItemsResponseSchema,
   CheckoutStatusResponseSchema,
   SubscribeCheckoutDiffResponseSchema,
