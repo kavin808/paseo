@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { DirectAuthService, resolvePaseoHome } from "@getpaseo/server";
 import type {
   CommandError,
   CommandOptions,
@@ -9,6 +8,8 @@ import type {
 } from "../../output/index.js";
 import { withOutput } from "../../output/index.js";
 import { addJsonOption } from "../../utils/command-options.js";
+import { DirectAuthService } from "../../../../server/src/server/direct-auth/direct-auth-service.ts";
+import { resolvePaseoHome } from "../../../../server/src/server/paseo-home.ts";
 
 type DirectAuthTokenRow = {
   id: string;
