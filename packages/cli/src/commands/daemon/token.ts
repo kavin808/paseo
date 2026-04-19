@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { DirectAuthService, resolvePaseoHome } from "@getpaseo/server";
 import type {
   CommandError,
   CommandOptions,
@@ -7,8 +8,7 @@ import type {
   SingleResult,
 } from "../../output/index.js";
 import { withOutput } from "../../output/index.js";
-import { addJsonAndDaemonHostOptions } from "../../utils/command-options.js";
-import { connectToDaemon } from "../../utils/client.js";
+import { addJsonOption } from "../../utils/command-options.js";
 
 type DirectAuthTokenRow = {
   id: string;
@@ -25,8 +25,7 @@ type DirectAuthTokenSecretRow = DirectAuthTokenRow & {
 };
 
 interface TokenCommandOptions extends CommandOptions {
-  host?: string;
-  token?: string;
+  home?: string;
 }
 
 interface TokenCreateOptions extends TokenCommandOptions {
@@ -103,52 +102,44 @@ function parseTtlMs(raw: unknown): number | undefined {
   return Math.ceil(seconds * 1000);
 }
 
-async function withDaemonClient<T>(
-  options: TokenCommandOptions,
-  action: (client: Awaited<ReturnType<typeof connectToDaemon>>) => Promise<T>,
-): Promise<T> {
-  const client = await connectToDaemon(options);
-  try {
-    return await action(client);
-  } finally {
-    await client.close().catch(() => {});
-  }
+function resolveTokenService(options: TokenCommandOptions): DirectAuthService {
+  const env =
+    typeof options.home === "string" ? { ...process.env, PASEO_HOME: options.home } : process.env;
+  const paseoHome = resolvePaseoHome(env);
+  return new DirectAuthService({ paseoHome });
 }
 
 export async function runTokenListCommand(
   options: TokenCommandOptions,
   _command: Command,
 ): Promise<ListResult<DirectAuthTokenRow>> {
-  return withDaemonClient(options, async (client) => {
-    const payload = await client.listDirectAuthTokens();
-    return {
-      type: "list",
-      data: payload.tokens.map((token: (typeof payload.tokens)[number]) => toTokenRow(token)),
-      schema: tokenListSchema,
-    };
-  });
+  const service = resolveTokenService(options);
+  return {
+    type: "list",
+    data: service.listTokens().map((token) => toTokenRow(token)),
+    schema: tokenListSchema,
+  };
 }
 
 export async function runTokenCreateCommand(
   options: TokenCreateOptions,
   _command: Command,
 ): Promise<SingleResult<DirectAuthTokenSecretRow>> {
-  return withDaemonClient(options, async (client) => {
-    const payload = await client.createDirectAuthToken({
-      kind: options.temporary ? "temporary" : "persistent",
-      label: typeof options.label === "string" ? options.label : undefined,
-      ttlMs: parseTtlMs(options.ttl),
-    });
-
-    return {
-      type: "single",
-      data: {
-        ...toTokenRow(payload.record),
-        token: payload.token,
-      },
-      schema: tokenSecretSchema,
-    };
+  const service = resolveTokenService(options);
+  const payload = service.issueToken({
+    kind: options.temporary ? "temporary" : "persistent",
+    label: typeof options.label === "string" ? options.label : undefined,
+    ttlMs: parseTtlMs(options.ttl),
   });
+
+  return {
+    type: "single",
+    data: {
+      ...toTokenRow(payload.record),
+      token: payload.token,
+    },
+    schema: tokenSecretSchema,
+  };
 }
 
 export async function runTokenRevokeCommand(
@@ -161,14 +152,17 @@ export async function runTokenRevokeCommand(
     throw toCommandError("INVALID_TOKEN_ID", "Token id is required");
   }
 
-  return withDaemonClient(options, async (client) => {
-    const payload = await client.revokeDirectAuthToken(normalizedId);
-    return {
-      type: "single",
-      data: toTokenRow(payload.record),
-      schema: tokenListSchema,
-    };
-  });
+  const service = resolveTokenService(options);
+  const record = service.revokeToken(normalizedId);
+  if (!record) {
+    throw toCommandError("TOKEN_NOT_FOUND", `Direct auth token not found: ${normalizedId}`);
+  }
+
+  return {
+    type: "single",
+    data: toTokenRow(record),
+    schema: tokenListSchema,
+  };
 }
 
 export async function runTokenRotateCommand(
@@ -181,41 +175,56 @@ export async function runTokenRotateCommand(
     throw toCommandError("INVALID_TOKEN_ID", "Token id is required");
   }
 
-  return withDaemonClient(options, async (client) => {
-    const payload = await client.rotateDirectAuthToken(normalizedId);
-    return {
-      type: "single",
-      data: {
-        ...toTokenRow(payload.record),
-        token: payload.token,
-      },
-      schema: tokenSecretSchema,
-    };
-  });
+  const service = resolveTokenService(options);
+  const payload = service.rotateToken(normalizedId);
+  if (!payload) {
+    throw toCommandError("TOKEN_NOT_FOUND", `Direct auth token not found: ${normalizedId}`);
+  }
+
+  return {
+    type: "single",
+    data: {
+      ...toTokenRow(payload.record),
+      token: payload.token,
+    },
+    schema: tokenSecretSchema,
+  };
 }
 
 export function tokenCommand(): Command {
   const token = new Command("token").description("Manage daemon direct auth tokens");
 
-  addJsonAndDaemonHostOptions(
+  addJsonOption(
     token
       .command("create")
       .description("Create a direct auth token")
+      .option("--home <path>", "Paseo home directory (default: ~/.paseo)")
       .option("--label <label>", "Optional token label")
       .option("--ttl <seconds>", "Optional token TTL in seconds")
       .option("--temporary", "Create a temporary token"),
   ).action(withOutput(runTokenCreateCommand));
 
-  addJsonAndDaemonHostOptions(token.command("ls").description("List direct auth tokens")).action(
-    withOutput(runTokenListCommand),
-  );
+  addJsonOption(
+    token
+      .command("ls")
+      .description("List direct auth tokens")
+      .option("--home <path>", "Paseo home directory (default: ~/.paseo)"),
+  ).action(withOutput(runTokenListCommand));
 
-  addJsonAndDaemonHostOptions(
-    token.command("revoke").description("Revoke a direct auth token").argument("<id>", "Token id"),
+  addJsonOption(
+    token
+      .command("revoke")
+      .description("Revoke a direct auth token")
+      .argument("<id>", "Token id")
+      .option("--home <path>", "Paseo home directory (default: ~/.paseo)"),
   ).action(withOutput(runTokenRevokeCommand));
 
-  addJsonAndDaemonHostOptions(
-    token.command("rotate").description("Rotate a direct auth token").argument("<id>", "Token id"),
+  addJsonOption(
+    token
+      .command("rotate")
+      .description("Rotate a direct auth token")
+      .argument("<id>", "Token id")
+      .option("--home <path>", "Paseo home directory (default: ~/.paseo)"),
   ).action(withOutput(runTokenRotateCommand));
 
   return token;
