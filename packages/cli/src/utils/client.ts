@@ -7,6 +7,7 @@ import { getOrCreateCliClientId } from "./client-id.js";
 export interface ConnectOptions {
   host?: string;
   timeout?: number;
+  token?: string;
 }
 
 const DEFAULT_HOST = "localhost:6767";
@@ -142,6 +143,35 @@ function resolveDaemonHostCandidates(options?: ConnectOptions): string[] {
   return resolveDefaultDaemonHosts();
 }
 
+function readDirectTokenFromArgv(argv: string[] = process.argv): string | null {
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    if (current === "--token") {
+      const next = argv[index + 1];
+      if (typeof next !== "string") {
+        return null;
+      }
+      const trimmed = next.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    if (typeof current === "string" && current.startsWith("--token=")) {
+      const trimmed = current.slice("--token=".length).trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+  }
+  return null;
+}
+
+export function resolveDirectToken(options?: ConnectOptions): string | null {
+  const explicitToken =
+    options?.token ?? process.env.PASEO_DIRECT_TOKEN ?? readDirectTokenFromArgv(process.argv);
+  if (typeof explicitToken !== "string") {
+    return null;
+  }
+  const trimmed = explicitToken.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function resolveDaemonTarget(host: string): DaemonTarget {
   const trimmed = host.trim();
   if (
@@ -198,6 +228,7 @@ export async function connectToDaemon(options?: ConnectOptions): Promise<DaemonC
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
   const clientId = await getOrCreateCliClientId();
   const hosts = resolveDaemonHostCandidates(options);
+  const directToken = resolveDirectToken(options);
   const nodeWebSocketFactory = createNodeWebSocketFactory();
   let lastError: unknown = null;
 
@@ -208,6 +239,7 @@ export async function connectToDaemon(options?: ConnectOptions): Promise<DaemonC
       clientId,
       clientType: "cli",
       connectTimeoutMs: timeout,
+      ...(directToken ? { directAuth: { type: "bearer" as const, token: directToken } } : {}),
       webSocketFactory: (url: string, config?: { headers?: Record<string, string> }) =>
         nodeWebSocketFactory(url, {
           headers: config?.headers,

@@ -182,6 +182,10 @@ export type DaemonClientConfig = {
   clientType?: "mobile" | "browser" | "cli" | "mcp";
   appVersion?: string;
   runtimeGeneration?: number | null;
+  directAuth?: {
+    type: "bearer";
+    token: string;
+  };
   authHeader?: string;
   suppressSendErrors?: boolean;
   transportFactory?: DaemonTransportFactory;
@@ -3613,6 +3617,7 @@ export class DaemonClient {
           clientType: this.config.clientType ?? "cli",
           protocolVersion: 1,
           ...(this.config.appVersion ? { appVersion: this.config.appVersion } : {}),
+          ...(this.config.directAuth ? { auth: this.config.directAuth } : {}),
         }),
       );
     } catch (error) {

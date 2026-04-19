@@ -2630,4 +2630,71 @@ describe("DaemonClient", () => {
       vi.useRealTimers();
     }
   });
+
+  test("includes direct auth in hello when configured", async () => {
+    const logger = createMockLogger();
+    const sent: Array<string | Uint8Array | ArrayBuffer> = [];
+    let onOpen: () => void = () => {};
+    let onMessage: (data: unknown) => void = () => {};
+
+    const transport: DaemonTransport = {
+      send: (data) => sent.push(data),
+      close: () => {},
+      onMessage: (handler) => {
+        onMessage = handler;
+        return () => {};
+      },
+      onOpen: (handler) => {
+        onOpen = handler;
+        return () => {};
+      },
+      onClose: () => () => {},
+      onError: () => () => {},
+    };
+
+    const client = new DaemonClient({
+      url: "ws://test",
+      clientId: "clsk_unit_test",
+      logger,
+      directAuth: {
+        type: "bearer",
+        token: "paseo_dt_test_token",
+      },
+      reconnect: { enabled: false },
+      transportFactory: () => transport,
+    });
+    clients.push(client);
+
+    const connectPromise = client.connect();
+    onOpen();
+    onMessage(
+      JSON.stringify({
+        type: "session",
+        message: {
+          type: "status",
+          payload: {
+            status: "server_info",
+            serverId: "srv_test_direct_auth",
+            hostname: null,
+            version: null,
+          },
+        },
+      }),
+    );
+    await connectPromise;
+
+    const hello = JSON.parse(sent[0] as string) as {
+      type: string;
+      auth?: {
+        type: string;
+        token: string;
+      };
+    };
+
+    expect(hello.type).toBe("hello");
+    expect(hello.auth).toEqual({
+      type: "bearer",
+      token: "paseo_dt_test_token",
+    });
+  });
 });
