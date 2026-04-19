@@ -237,6 +237,13 @@ export const PersistedConfigSchema = z
           })
           .passthrough()
           .optional(),
+        directAuth: z
+          .object({
+            mode: z.enum(["off", "bearer"]).optional(),
+            enforceOnNonLoopback: z.boolean().optional(),
+          })
+          .strict()
+          .optional(),
         cors: z
           .object({
             allowedOrigins: z.array(z.string()).optional(),
@@ -298,6 +305,10 @@ const DEFAULT_PERSISTED_CONFIG = PersistedConfigSchema.parse({
   version: 1,
   daemon: {
     listen: "127.0.0.1:6767",
+    directAuth: {
+      mode: "off",
+      enforceOnNonLoopback: false,
+    },
     cors: {
       allowedOrigins: ["https://app.paseo.sh"],
     },

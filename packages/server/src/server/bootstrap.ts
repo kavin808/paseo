@@ -176,6 +176,10 @@ export type PaseoDaemonConfig = {
   corsAllowedOrigins: string[];
   allowedHosts?: HostnamesConfig;
   hostnames?: HostnamesConfig;
+  directAuth?: {
+    mode: "off" | "bearer";
+    enforceOnNonLoopback: boolean;
+  };
   mcpEnabled?: boolean;
   mcpInjectIntoAgents?: boolean;
   staticDir: string;
@@ -221,6 +225,10 @@ export async function createPaseoDaemon(
   const daemonConfigStore = new DaemonConfigStore(
     config.paseoHome,
     {
+      directAuth: {
+        mode: config.directAuth?.mode ?? "off",
+        enforceOnNonLoopback: config.directAuth?.enforceOnNonLoopback ?? false,
+      },
       mcp: { injectIntoAgents: config.mcpInjectIntoAgents ?? true },
     },
     logger,

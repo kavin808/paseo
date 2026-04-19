@@ -152,6 +152,11 @@ function mergeMutableConfigIntoPersistedConfig(params: {
     ...persisted,
     daemon: {
       ...persisted.daemon,
+      directAuth: {
+        ...persisted.daemon?.directAuth,
+        mode: mutable.directAuth.mode,
+        enforceOnNonLoopback: mutable.directAuth.enforceOnNonLoopback,
+      },
       mcp: {
         ...persisted.daemon?.mcp,
         injectIntoAgents: mutable.mcp.injectIntoAgents,

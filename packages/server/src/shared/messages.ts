@@ -53,6 +53,12 @@ import {
 
 export const MutableDaemonConfigSchema = z
   .object({
+    directAuth: z
+      .object({
+        mode: z.enum(["off", "bearer"]),
+        enforceOnNonLoopback: z.boolean(),
+      })
+      .passthrough(),
     mcp: z
       .object({
         injectIntoAgents: z.boolean(),
@@ -63,6 +69,7 @@ export const MutableDaemonConfigSchema = z
 
 export const MutableDaemonConfigPatchSchema = z
   .object({
+    directAuth: MutableDaemonConfigSchema.shape.directAuth.partial().optional(),
     mcp: MutableDaemonConfigSchema.shape.mcp.partial().optional(),
   })
   .partial()
@@ -3325,6 +3332,12 @@ export const WSHelloMessageSchema = z.object({
       pushNotifications: z.boolean().optional(),
     })
     .passthrough()
+    .optional(),
+  auth: z
+    .object({
+      type: z.literal("bearer"),
+      token: z.string().min(1),
+    })
     .optional(),
 });
 

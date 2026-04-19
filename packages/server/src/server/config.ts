@@ -138,6 +138,10 @@ export function loadConfig(
   const mcpEnabled = options?.cli?.mcpEnabled ?? persisted.daemon?.mcp?.enabled ?? true;
   const mcpInjectIntoAgents =
     options?.cli?.mcpInjectIntoAgents ?? persisted.daemon?.mcp?.injectIntoAgents ?? false;
+  const directAuth = {
+    mode: persisted.daemon?.directAuth?.mode ?? "off",
+    enforceOnNonLoopback: persisted.daemon?.directAuth?.enforceOnNonLoopback ?? false,
+  };
 
   const relayEnabled =
     options?.cli?.relayEnabled ??
@@ -180,6 +184,7 @@ export function loadConfig(
     hostnames,
     mcpEnabled,
     mcpInjectIntoAgents,
+    directAuth,
     mcpDebug: env.MCP_DEBUG === "1",
     agentStoragePath: path.join(paseoHome, "agents"),
     staticDir: "public",

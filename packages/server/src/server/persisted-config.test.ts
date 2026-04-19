@@ -2,6 +2,24 @@ import { describe, expect, test } from "vitest";
 
 import { PersistedConfigSchema } from "./persisted-config.js";
 
+describe("PersistedConfigSchema direct auth", () => {
+  test("accepts daemon direct auth configuration", () => {
+    const parsed = PersistedConfigSchema.parse({
+      daemon: {
+        directAuth: {
+          mode: "bearer",
+          enforceOnNonLoopback: true,
+        },
+      },
+    });
+
+    expect(parsed.daemon?.directAuth).toEqual({
+      mode: "bearer",
+      enforceOnNonLoopback: true,
+    });
+  });
+});
+
 describe("PersistedConfigSchema agent provider runtime settings", () => {
   test("legacy append entries are skipped during migration", () => {
     const parsed = PersistedConfigSchema.parse({
