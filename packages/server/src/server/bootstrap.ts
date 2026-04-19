@@ -9,6 +9,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Logger } from "pino";
 import { createBranchChangeRouteHandler } from "./script-route-branch-handler.js";
+import { DirectAuthService } from "./direct-auth/direct-auth-service.js";
 
 export type ListenTarget =
   | { type: "tcp"; host: string; port: number }
@@ -243,6 +244,10 @@ export async function createPaseoDaemon(
     const downloadTokenTtlMs = config.downloadTokenTtlMs ?? 60000;
 
     const downloadTokenStore = new DownloadTokenStore({ ttlMs: downloadTokenTtlMs });
+    const directAuthService = new DirectAuthService({
+      logger,
+      paseoHome: config.paseoHome,
+    });
 
     const listenTarget = parseListenString(config.listen);
 
@@ -704,6 +709,7 @@ export async function createPaseoDaemon(
               downloadTokenStore,
               config.paseoHome,
               daemonConfigStore,
+              directAuthService,
               mcpBaseUrl,
               { allowedOrigins, hostnames: configuredHostnames },
               speechService,

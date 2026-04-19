@@ -52,6 +52,7 @@ import {
   findLatestPermissionRequest,
 } from "../shared/agent-attention-notification.js";
 import { createGitHubService, type GitHubService } from "../services/github-service.js";
+import type { DirectAuthService } from "./direct-auth/direct-auth-service.js";
 
 export type ExternalSocketMetadata = {
   transport: "relay";
@@ -61,6 +62,8 @@ export type ExternalSocketMetadata = {
 type PendingConnection = {
   connectionLogger: pino.Logger;
   helloTimeout: ReturnType<typeof setTimeout> | null;
+  transport: "direct" | "relay";
+  requestMetadata: SocketRequestMetadata;
 };
 
 type WebSocketServerConfig = {
@@ -272,6 +275,8 @@ const HELLO_TIMEOUT_MS = 15_000;
 const WS_CLOSE_HELLO_TIMEOUT = 4001;
 const WS_CLOSE_INVALID_HELLO = 4002;
 const WS_CLOSE_INCOMPATIBLE_PROTOCOL = 4003;
+const WS_CLOSE_AUTH_REQUIRED = 4004;
+const WS_CLOSE_AUTH_FAILED = 4005;
 const WS_PROTOCOL_VERSION = 1;
 const WS_RUNTIME_METRICS_FLUSH_MS = 30_000;
 
@@ -306,6 +311,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly downloadTokenStore: DownloadTokenStore;
   private readonly paseoHome: string;
   private readonly daemonConfigStore: DaemonConfigStore;
+  private readonly directAuthService: DirectAuthService | null;
   private readonly pushTokenStore: PushTokenStore;
   private readonly pushService: PushService;
   private readonly mcpBaseUrl: string | null;
@@ -369,6 +375,7 @@ export class VoiceAssistantWebSocketServer {
     downloadTokenStore: DownloadTokenStore,
     paseoHome: string,
     daemonConfigStore: DaemonConfigStore,
+    directAuthService: DirectAuthService | null,
     mcpBaseUrl: string | null,
     wsConfig: WebSocketServerConfig,
     speech?: SpeechService | null,
@@ -430,6 +437,7 @@ export class VoiceAssistantWebSocketServer {
     this.downloadTokenStore = downloadTokenStore;
     this.paseoHome = paseoHome;
     this.daemonConfigStore = daemonConfigStore;
+    this.directAuthService = directAuthService;
     this.mcpBaseUrl = mcpBaseUrl;
     this.speech = speech ?? null;
     this.terminalManager = terminalManager ?? null;
@@ -685,6 +693,8 @@ export class VoiceAssistantWebSocketServer {
     const pending: PendingConnection = {
       connectionLogger,
       helloTimeout: null,
+      transport: metadata?.transport === "relay" ? "relay" : "direct",
+      requestMetadata,
     };
     const timeout = setTimeout(() => {
       if (this.pendingConnections.get(ws) !== pending) {
@@ -859,6 +869,24 @@ export class VoiceAssistantWebSocketServer {
       return;
     }
 
+    const authFailure = this.validateHelloAuth({ message, pending });
+    if (authFailure) {
+      this.clearPendingConnection(ws);
+      pending.connectionLogger.warn(
+        {
+          transport: pending.transport,
+          reason: authFailure.reason,
+        },
+        "Rejected hello due to direct auth failure",
+      );
+      try {
+        ws.close(authFailure.code, authFailure.reason);
+      } catch {
+        // ignore close errors
+      }
+      return;
+    }
+
     this.clearPendingConnection(ws);
     const existing = this.externalSessionsByKey.get(clientId);
     if (existing) {
@@ -905,6 +933,60 @@ export class VoiceAssistantWebSocketServer {
       },
       "Client connected via hello",
     );
+  }
+
+  private validateHelloAuth(params: {
+    message: WSHelloMessage;
+    pending: PendingConnection;
+  }): { code: number; reason: string } | null {
+    const { message, pending } = params;
+    if (pending.transport === "relay") {
+      return null;
+    }
+
+    const directAuth = this.daemonConfigStore.get().directAuth;
+    if (directAuth.mode !== "bearer") {
+      return null;
+    }
+    if (
+      directAuth.enforceOnNonLoopback &&
+      isLoopbackRemoteAddress(pending.requestMetadata.remoteAddress)
+    ) {
+      return null;
+    }
+    if (!message.auth) {
+      return {
+        code: WS_CLOSE_AUTH_REQUIRED,
+        reason: "Authentication required",
+      };
+    }
+    if (message.auth.type !== "bearer" || message.auth.token.trim().length === 0) {
+      return {
+        code: WS_CLOSE_AUTH_FAILED,
+        reason: "Invalid token",
+      };
+    }
+    if (!this.directAuthService) {
+      return {
+        code: WS_CLOSE_AUTH_FAILED,
+        reason: "Invalid token",
+      };
+    }
+
+    const result = this.directAuthService.authenticateToken(message.auth.token);
+    if (result.ok) {
+      return null;
+    }
+
+    return {
+      code: WS_CLOSE_AUTH_FAILED,
+      reason:
+        result.reason === "expired"
+          ? "Expired token"
+          : result.reason === "revoked"
+            ? "Revoked token"
+            : "Invalid token",
+    };
   }
 
   private buildServerInfoStatusPayload(): ServerInfoStatusPayload {
@@ -1644,6 +1726,17 @@ function extractSocketRequestMetadata(request: unknown): SocketRequestMetadata {
     ...(userAgent ? { userAgent } : {}),
     ...(remoteAddress ? { remoteAddress } : {}),
   };
+}
+
+function isLoopbackRemoteAddress(address: string | undefined): boolean {
+  if (!address) {
+    return true;
+  }
+  return (
+    address === "127.0.0.1" ||
+    address === "::1" ||
+    address === "::ffff:127.0.0.1"
+  );
 }
 
 function stringifyCloseReason(reason: unknown): string | null {

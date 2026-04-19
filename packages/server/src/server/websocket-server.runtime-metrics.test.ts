@@ -66,6 +66,10 @@ function createLogger() {
 function createServer(logger: ReturnType<typeof createLogger>) {
   const daemonConfigStore = {
     onChange: vi.fn(() => () => {}),
+    get: vi.fn(() => ({
+      directAuth: { mode: "off", enforceOnNonLoopback: false },
+      mcp: { injectIntoAgents: false },
+    })),
   };
 
   return new VoiceAssistantWebSocketServer(
@@ -87,6 +91,7 @@ function createServer(logger: ReturnType<typeof createLogger>) {
     {} as any,
     "/tmp/paseo-test",
     daemonConfigStore as any,
+    null,
     null,
     { allowedOrigins: new Set() },
     undefined,

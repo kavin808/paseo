@@ -149,6 +149,10 @@ function createServer(options?: { speechReadiness?: SpeechReadinessSnapshot | nu
   const speechReadiness = options?.speechReadiness ?? null;
   const daemonConfigStore = {
     onChange: vi.fn(() => () => {}),
+    get: vi.fn(() => ({
+      directAuth: { mode: "off", enforceOnNonLoopback: false },
+      mcp: { injectIntoAgents: false },
+    })),
   };
   return new VoiceAssistantWebSocketServer(
     {} as any,
@@ -169,6 +173,7 @@ function createServer(options?: { speechReadiness?: SpeechReadinessSnapshot | nu
     {} as any,
     "/tmp/paseo-test",
     daemonConfigStore as any,
+    null,
     null,
     { allowedOrigins: new Set() },
     speechReadiness

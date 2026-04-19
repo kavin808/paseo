@@ -68,6 +68,10 @@ function createServer(agentManagerOverrides?: Record<string, unknown>) {
   };
   const daemonConfigStore = {
     onChange: vi.fn(() => () => {}),
+    get: vi.fn(() => ({
+      directAuth: { mode: "off", enforceOnNonLoopback: false },
+      mcp: { injectIntoAgents: false },
+    })),
   };
 
   const server = new VoiceAssistantWebSocketServer(
@@ -79,6 +83,7 @@ function createServer(agentManagerOverrides?: Record<string, unknown>) {
     {} as any,
     "/tmp/paseo-test",
     daemonConfigStore as any,
+    null,
     null,
     { allowedOrigins: new Set() },
     undefined,
