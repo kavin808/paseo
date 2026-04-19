@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const daemonClientMock = vi.hoisted(() => {
-  const createdConfigs: Array<{ clientId?: string; url?: string }> = [];
+  const createdConfigs: Array<{
+    clientId?: string;
+    url?: string;
+    directAuth?: { type: "bearer"; token: string };
+  }> = [];
 
   class MockDaemonClient {
     public lastError: string | null = null;
@@ -12,7 +16,11 @@ const daemonClientMock = vi.hoisted(() => {
       version: "0.0.0",
     };
 
-    constructor(config: { clientId?: string; url?: string }) {
+    constructor(config: {
+      clientId?: string;
+      url?: string;
+      directAuth?: { type: "bearer"; token: string };
+    }) {
       createdConfigs.push(config);
     }
 
@@ -114,5 +122,25 @@ describe("test-daemon-connection connectToDaemon", () => {
     expect(daemonClientMock.createdConfigs[0]?.url).toBe(
       "paseo+local://socket?path=%2Ftmp%2Fpaseo.sock",
     );
+  });
+
+  it("passes direct auth through for direct tcp connections", async () => {
+    const mod = await import("./test-daemon-connection");
+
+    const result = await mod.connectToDaemon({
+      id: "direct:auth:6767",
+      type: "directTcp",
+      endpoint: "auth:6767",
+      auth: {
+        type: "bearer",
+        token: "paseo_dt_app_probe",
+      },
+    });
+    await result.client.close();
+
+    expect(daemonClientMock.createdConfigs[0]?.directAuth).toEqual({
+      type: "bearer",
+      token: "paseo_dt_app_probe",
+    });
   });
 });

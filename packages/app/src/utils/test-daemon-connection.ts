@@ -71,6 +71,7 @@ export async function buildClientConfig(
         transportType: connection.type === "directSocket" ? "socket" : "pipe",
         transportPath: connection.path,
       }),
+      ...(connection.auth ? { directAuth: connection.auth } : {}),
     };
   }
 
@@ -78,6 +79,7 @@ export async function buildClientConfig(
     return {
       ...base,
       url: buildDaemonWebSocketUrl(connection.endpoint),
+      ...(connection.auth ? { directAuth: connection.auth } : {}),
     };
   }
 

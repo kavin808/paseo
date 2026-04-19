@@ -431,12 +431,14 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
             transportType: connection.type === "directSocket" ? "socket" : "pipe",
             transportPath: connection.path,
           }),
+          ...(connection.auth ? { directAuth: connection.auth } : {}),
         });
       }
       if (connection.type === "directTcp") {
         return new DaemonClient({
           ...base,
           url: buildDaemonWebSocketUrl(connection.endpoint),
+          ...(connection.auth ? { directAuth: connection.auth } : {}),
         });
       }
       return new DaemonClient({
@@ -1245,6 +1247,7 @@ export class HostRuntimeStore {
     serverId: string;
     endpoint: string;
     label?: string;
+    auth?: { type: "bearer"; token: string };
     existingClient?: DaemonClient;
   }): Promise<HostProfile> {
     const endpoint = normalizeHostPort(input.endpoint);
@@ -1255,6 +1258,7 @@ export class HostRuntimeStore {
         id: `direct:${endpoint}`,
         type: "directTcp",
         endpoint,
+        ...(input.auth ? { auth: input.auth } : {}),
       },
       existingClient: input.existingClient,
     });
@@ -1946,6 +1950,7 @@ export interface HostMutations {
     serverId: string;
     endpoint: string;
     label?: string;
+    auth?: { type: "bearer"; token: string };
   }) => Promise<HostProfile>;
   upsertRelayConnection: (input: {
     serverId: string;

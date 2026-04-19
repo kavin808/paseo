@@ -1,21 +1,29 @@
 import { normalizeHostPort, normalizeLoopbackToLocalhost } from "@server/shared/daemon-endpoints";
 
+export type BearerAuth = {
+  type: "bearer";
+  token: string;
+};
+
 export type DirectTcpHostConnection = {
   id: string;
   type: "directTcp";
   endpoint: string;
+  auth?: BearerAuth;
 };
 
 export type DirectSocketHostConnection = {
   id: string;
   type: "directSocket";
   path: string;
+  auth?: BearerAuth;
 };
 
 export type DirectPipeHostConnection = {
   id: string;
   type: "directPipe";
   path: string;
+  auth?: BearerAuth;
 };
 
 export type RelayHostConnection = {
@@ -52,19 +60,47 @@ export function normalizeHostLabel(value: string | null | undefined, serverId: s
   return trimmed.length > 0 ? trimmed : serverId;
 }
 
+function authEquals(left: BearerAuth | undefined, right: BearerAuth | undefined): boolean {
+  if (!left && !right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return left.type === right.type && left.token === right.token;
+}
+
+function normalizeBearerAuth(value: unknown): BearerAuth | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.type !== "bearer") {
+    return undefined;
+  }
+  const token = typeof record.token === "string" ? record.token.trim() : "";
+  if (!token) {
+    return undefined;
+  }
+  return {
+    type: "bearer",
+    token,
+  };
+}
+
 function hostConnectionEquals(left: HostConnection, right: HostConnection): boolean {
   if (left.type !== right.type || left.id !== right.id) {
     return false;
   }
 
   if (left.type === "directTcp" && right.type === "directTcp") {
-    return left.endpoint === right.endpoint;
+    return left.endpoint === right.endpoint && authEquals(left.auth, right.auth);
   }
   if (left.type === "directSocket" && right.type === "directSocket") {
-    return left.path === right.path;
+    return left.path === right.path && authEquals(left.auth, right.auth);
   }
   if (left.type === "directPipe" && right.type === "directPipe") {
-    return left.path === right.path;
+    return left.path === right.path && authEquals(left.auth, right.auth);
   }
   if (left.type === "relay" && right.type === "relay") {
     return (
@@ -238,18 +274,30 @@ function normalizeStoredConnection(connection: unknown): HostConnection | null {
       const endpoint = normalizeLoopbackToLocalhost(
         normalizeHostPort(String(record.endpoint ?? "")),
       );
-      return { id: `direct:${endpoint}`, type: "directTcp", endpoint };
+      const auth = normalizeBearerAuth(record.auth);
+      return {
+        id: `direct:${endpoint}`,
+        type: "directTcp",
+        endpoint,
+        ...(auth ? { auth } : {}),
+      };
     } catch {
       return null;
     }
   }
   if (type === "directSocket") {
     const path = String(record.path ?? "").trim();
-    return path ? { id: `socket:${path}`, type: "directSocket", path } : null;
+    const auth = normalizeBearerAuth(record.auth);
+    return path
+      ? { id: `socket:${path}`, type: "directSocket", path, ...(auth ? { auth } : {}) }
+      : null;
   }
   if (type === "directPipe") {
     const path = String(record.path ?? "").trim();
-    return path ? { id: `pipe:${path}`, type: "directPipe", path } : null;
+    const auth = normalizeBearerAuth(record.auth);
+    return path
+      ? { id: `pipe:${path}`, type: "directPipe", path, ...(auth ? { auth } : {}) }
+      : null;
   }
   if (type === "relay") {
     try {

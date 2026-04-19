@@ -1336,6 +1336,47 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
+  it("upsertDirectConnection persists bearer auth on direct hosts", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await store.upsertDirectConnection({
+      serverId: "srv_auth",
+      endpoint: "lan:6767",
+      label: "auth host",
+      auth: {
+        type: "bearer",
+        token: "paseo_dt_runtime_saved",
+      },
+    });
+
+    const saved = store
+      .getHosts()
+      .find((host) => host.serverId === "srv_auth")
+      ?.connections.find((connection) => connection.id === "direct:lan:6767");
+
+    expect(saved).toEqual({
+      id: "direct:lan:6767",
+      type: "directTcp",
+      endpoint: "lan:6767",
+      auth: {
+        type: "bearer",
+        token: "paseo_dt_runtime_saved",
+      },
+    });
+
+    store.syncHosts([]);
+  });
+
   it("uses the advertised hostname when adding a relay host from a pairing offer", async () => {
     const store = new HostRuntimeStore({
       deps: {

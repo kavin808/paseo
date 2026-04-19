@@ -148,14 +148,18 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
   const isMobile = useIsCompactFormFactor();
 
   const hostInputRef = useRef<TextInput>(null);
+  const tokenInputRef = useRef<TextInput>(null);
   const endpointRawRef = useRef("");
+  const tokenRawRef = useRef("");
 
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const clearInput = useCallback(() => {
     endpointRawRef.current = "";
+    tokenRawRef.current = "";
     hostInputRef.current?.clear();
+    tokenInputRef.current?.clear();
   }, []);
 
   const handleClose = useCallback(() => {
@@ -197,11 +201,14 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     try {
       setIsSaving(true);
       setErrorMessage("");
+      const token = tokenRawRef.current.trim();
+      const auth = token ? { type: "bearer" as const, token } : undefined;
 
       const { client, serverId, hostname } = await connectToDaemon({
         id: "probe",
         type: "directTcp",
         endpoint,
+        ...(auth ? { auth } : {}),
       });
       await client.close().catch(() => undefined);
       const isNewHost = !daemons.some((daemon) => daemon.serverId === serverId);
@@ -209,6 +216,7 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
         serverId,
         endpoint,
         label: hostname ?? undefined,
+        ...(auth ? { auth } : {}),
       });
 
       onSaved?.({ profile, serverId, hostname, isNewHost });
@@ -256,6 +264,27 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
+          editable={!isSaving}
+          returnKeyType="done"
+          onSubmitEditing={() => void handleSave()}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Token (optional)</Text>
+        <AdaptiveTextInput
+          ref={tokenInputRef}
+          testID="direct-host-token-input"
+          nativeID="direct-host-token-input"
+          accessibilityLabel="direct-host-token-input"
+          onChangeText={(next) => {
+            tokenRawRef.current = next;
+          }}
+          placeholder="paseo_dt_..."
+          placeholderTextColor={theme.colors.foregroundMuted}
+          style={styles.input}
+          autoCapitalize="none"
+          autoCorrect={false}
           editable={!isSaving}
           returnKeyType="done"
           onSubmitEditing={() => void handleSave()}
