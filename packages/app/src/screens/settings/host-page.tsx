@@ -268,7 +268,8 @@ export function HostRenameButton({ host }: { host: HostProfile }) {
 }
 
 function ConnectionsSection({ host }: { host: HostProfile }) {
-  const { removeConnection } = useHostMutations();
+  const { theme } = useUnistyles();
+  const { removeConnection, removeConnectionToken, updateConnectionToken } = useHostMutations();
   const snapshot = useHostRuntimeSnapshot(host.serverId);
   const probeByConnectionId = snapshot?.probeByConnectionId ?? new Map();
   const [pendingRemoveConnection, setPendingRemoveConnection] = useState<{
@@ -276,12 +277,32 @@ function ConnectionsSection({ host }: { host: HostProfile }) {
     title: string;
   } | null>(null);
   const [isRemovingConnection, setIsRemovingConnection] = useState(false);
+  const [pendingEditToken, setPendingEditToken] = useState<{
+    connectionId: string;
+    title: string;
+    token: string;
+  } | null>(null);
+  const [pendingRemoveToken, setPendingRemoveToken] = useState<{
+    connectionId: string;
+    title: string;
+  } | null>(null);
+  const [isSavingToken, setIsSavingToken] = useState(false);
+  const tokenInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (pendingEditToken) {
+      const timeout = setTimeout(() => tokenInputRef.current?.focus(), 50);
+      return () => clearTimeout(timeout);
+    }
+    return undefined;
+  }, [pendingEditToken]);
 
   return (
     <SettingsSection title="Connections">
       <View style={settingsStyles.card} testID="host-page-connections-card">
         {host.connections.map((conn, index) => {
           const probe = probeByConnectionId.get(conn.id);
+          const directAuth = conn.type === "relay" ? undefined : conn.auth;
           return (
             <ConnectionRow
               key={conn.id}
@@ -296,6 +317,27 @@ function ConnectionsSection({ host }: { host: HostProfile }) {
                   title: formatHostConnectionLabel(conn),
                 });
               }}
+              onEditToken={
+                directAuth?.type === "bearer"
+                  ? () => {
+                      setPendingEditToken({
+                        connectionId: conn.id,
+                        title: formatHostConnectionLabel(conn),
+                        token: directAuth.token,
+                      });
+                    }
+                  : undefined
+              }
+              onRemoveToken={
+                directAuth?.type === "bearer"
+                  ? () => {
+                      setPendingRemoveToken({
+                        connectionId: conn.id,
+                        title: formatHostConnectionLabel(conn),
+                      });
+                    }
+                  : undefined
+              }
             />
           );
         })}
@@ -347,6 +389,134 @@ function ConnectionsSection({ host }: { host: HostProfile }) {
           </View>
         </AdaptiveModalSheet>
       ) : null}
+
+      {pendingEditToken ? (
+        <AdaptiveModalSheet
+          title="Edit token"
+          visible
+          onClose={() => {
+            if (isSavingToken) return;
+            setPendingEditToken(null);
+          }}
+          testID="edit-connection-token-modal"
+        >
+          <Text style={styles.confirmText}>
+            Update the saved token for {pendingEditToken.title}.
+          </Text>
+          <TextInput
+            ref={tokenInputRef}
+            value={pendingEditToken.token}
+            onChangeText={(token) =>
+              setPendingEditToken((current) => (current ? { ...current, token } : current))
+            }
+            placeholder="paseo_dt_..."
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSavingToken}
+            onSubmitEditing={() => {
+              if (!pendingEditToken) return;
+              const token = pendingEditToken.token.trim();
+              if (!token) {
+                Alert.alert("Token required", "Enter a token before saving.");
+                return;
+              }
+              setIsSavingToken(true);
+              void updateConnectionToken(host.serverId, pendingEditToken.connectionId, token)
+                .then(() => setPendingEditToken(null))
+                .catch((error) => {
+                  console.error("[HostPage] Failed to update connection token", error);
+                  Alert.alert("Error", "Unable to update token");
+                })
+                .finally(() => setIsSavingToken(false));
+            }}
+            style={styles.renameInput}
+            placeholderTextColor={theme.colors.foregroundMuted}
+            testID="host-page-token-input"
+          />
+          <View style={styles.confirmActions}>
+            <Button
+              variant="secondary"
+              size="sm"
+              style={{ flex: 1 }}
+              onPress={() => setPendingEditToken(null)}
+              disabled={isSavingToken}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              style={{ flex: 1 }}
+              onPress={() => {
+                if (!pendingEditToken) return;
+                const token = pendingEditToken.token.trim();
+                if (!token) {
+                  Alert.alert("Token required", "Enter a token before saving.");
+                  return;
+                }
+                setIsSavingToken(true);
+                void updateConnectionToken(host.serverId, pendingEditToken.connectionId, token)
+                  .then(() => setPendingEditToken(null))
+                  .catch((error) => {
+                    console.error("[HostPage] Failed to update connection token", error);
+                    Alert.alert("Error", "Unable to update token");
+                  })
+                  .finally(() => setIsSavingToken(false));
+              }}
+              disabled={isSavingToken}
+              testID="host-page-token-save"
+            >
+              {isSavingToken ? "Saving..." : "Save"}
+            </Button>
+          </View>
+        </AdaptiveModalSheet>
+      ) : null}
+
+      {pendingRemoveToken ? (
+        <AdaptiveModalSheet
+          title="Remove token"
+          visible
+          onClose={() => {
+            if (isSavingToken) return;
+            setPendingRemoveToken(null);
+          }}
+          testID="remove-connection-token-modal"
+        >
+          <Text style={styles.confirmText}>
+            Remove the saved token for {pendingRemoveToken.title}? This only affects this device.
+          </Text>
+          <View style={styles.confirmActions}>
+            <Button
+              variant="secondary"
+              size="sm"
+              style={{ flex: 1 }}
+              onPress={() => setPendingRemoveToken(null)}
+              disabled={isSavingToken}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              style={{ flex: 1 }}
+              onPress={() => {
+                const { connectionId } = pendingRemoveToken;
+                setIsSavingToken(true);
+                void removeConnectionToken(host.serverId, connectionId)
+                  .then(() => setPendingRemoveToken(null))
+                  .catch((error) => {
+                    console.error("[HostPage] Failed to remove connection token", error);
+                    Alert.alert("Error", "Unable to remove token");
+                  })
+                  .finally(() => setIsSavingToken(false));
+              }}
+              disabled={isSavingToken}
+              testID="host-page-token-remove-confirm"
+            >
+              Remove
+            </Button>
+          </View>
+        </AdaptiveModalSheet>
+      ) : null}
     </SettingsSection>
   );
 }
@@ -358,6 +528,8 @@ function ConnectionRow({
   latencyLoading,
   latencyError,
   onRemove,
+  onEditToken,
+  onRemoveToken,
 }: {
   connection: HostConnection;
   showBorder: boolean;
@@ -365,6 +537,8 @@ function ConnectionRow({
   latencyLoading: boolean;
   latencyError: boolean;
   onRemove: () => void;
+  onEditToken?: () => void;
+  onRemoveToken?: () => void;
 }) {
   const { theme } = useUnistyles();
   const title = formatHostConnectionLabel(connection);
@@ -383,6 +557,21 @@ function ConnectionRow({
         <Text style={settingsStyles.rowTitle} numberOfLines={1}>
           {title}
         </Text>
+        {onEditToken && onRemoveToken ? (
+          <View style={styles.connectionTokenActions}>
+            <Button variant="ghost" size="sm" onPress={onEditToken}>
+              Edit token
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              textStyle={{ color: theme.colors.destructive }}
+              onPress={onRemoveToken}
+            >
+              Remove token
+            </Button>
+          </View>
+        ) : null}
       </View>
       <Text style={[styles.connectionLatency, { color: latencyColor }]}>{latencyText}</Text>
       <Button
@@ -742,6 +931,13 @@ const styles = StyleSheet.create((theme) => ({
   connectionLatency: {
     fontSize: theme.fontSize.sm,
     marginRight: theme.spacing[2],
+  },
+  connectionTokenActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[2],
+    flexWrap: "wrap",
   },
   confirmText: {
     color: theme.colors.foregroundMuted,

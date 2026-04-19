@@ -1377,6 +1377,90 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
+  it("updateConnectionToken replaces bearer auth on direct connections", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await store.upsertDirectConnection({
+      serverId: "srv_auth_edit",
+      endpoint: "lan:6767",
+      label: "auth host",
+      auth: {
+        type: "bearer",
+        token: "paseo_dt_old",
+      },
+    });
+
+    await store
+      .updateConnectionToken("srv_auth_edit", "direct:lan:6767", "paseo_dt_new")
+      .catch(() => undefined);
+
+    const saved = store
+      .getHosts()
+      .find((host) => host.serverId === "srv_auth_edit")
+      ?.connections.find((connection) => connection.id === "direct:lan:6767");
+
+    expect(saved).toEqual({
+      id: "direct:lan:6767",
+      type: "directTcp",
+      endpoint: "lan:6767",
+      auth: {
+        type: "bearer",
+        token: "paseo_dt_new",
+      },
+    });
+
+    store.syncHosts([]);
+  });
+
+  it("removeConnectionToken clears bearer auth from direct connections", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await store.upsertDirectConnection({
+      serverId: "srv_auth_remove",
+      endpoint: "lan:6767",
+      label: "auth host",
+      auth: {
+        type: "bearer",
+        token: "paseo_dt_remove",
+      },
+    });
+
+    await store.removeConnectionToken("srv_auth_remove", "direct:lan:6767").catch(() => undefined);
+
+    const saved = store
+      .getHosts()
+      .find((host) => host.serverId === "srv_auth_remove")
+      ?.connections.find((connection) => connection.id === "direct:lan:6767");
+
+    expect(saved).toEqual({
+      id: "direct:lan:6767",
+      type: "directTcp",
+      endpoint: "lan:6767",
+    });
+
+    store.syncHosts([]);
+  });
+
   it("uses the advertised hostname when adding a relay host from a pairing offer", async () => {
     const store = new HostRuntimeStore({
       deps: {

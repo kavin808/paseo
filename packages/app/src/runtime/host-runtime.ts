@@ -1383,6 +1383,116 @@ export class HostRuntimeStore {
     await this.persistHosts();
   }
 
+  async updateConnectionToken(
+    serverId: string,
+    connectionId: string,
+    token: string,
+  ): Promise<void> {
+    const normalizedToken = token.trim();
+    if (!normalizedToken) {
+      throw new Error("Token is required");
+    }
+
+    const now = new Date().toISOString();
+    let updated = false;
+    const next = this.hosts.map((host) => {
+      if (host.serverId !== serverId) {
+        return host;
+      }
+
+      const connections = host.connections.map((connection) => {
+        if (connection.id !== connectionId) {
+          return connection;
+        }
+        if (
+          connection.type !== "directTcp" &&
+          connection.type !== "directSocket" &&
+          connection.type !== "directPipe"
+        ) {
+          throw new Error("Only direct connections can store auth tokens");
+        }
+
+        updated = true;
+        return {
+          ...connection,
+          auth: {
+            type: "bearer" as const,
+            token: normalizedToken,
+          },
+        };
+      });
+
+      return updated
+        ? {
+            ...host,
+            connections,
+            updatedAt: now,
+          }
+        : host;
+    });
+
+    if (!updated) {
+      throw new Error(`Connection not found: ${connectionId}`);
+    }
+
+    this.setHostsAndSync(next);
+    await this.persistHosts();
+  }
+
+  async removeConnectionToken(serverId: string, connectionId: string): Promise<void> {
+    const now = new Date().toISOString();
+    let updated = false;
+    const next = this.hosts.map((host) => {
+      if (host.serverId !== serverId) {
+        return host;
+      }
+
+      const connections = host.connections.map((connection) => {
+        if (connection.id !== connectionId) {
+          return connection;
+        }
+        if (
+          connection.type !== "directTcp" &&
+          connection.type !== "directSocket" &&
+          connection.type !== "directPipe"
+        ) {
+          throw new Error("Only direct connections can store auth tokens");
+        }
+        if (!connection.auth) {
+          return connection;
+        }
+
+        updated = true;
+        return connection.type === "directTcp"
+          ? {
+              id: connection.id,
+              type: connection.type,
+              endpoint: connection.endpoint,
+            }
+          : {
+              id: connection.id,
+              type: connection.type,
+              path: connection.path,
+            };
+      });
+
+      return updated
+        ? {
+            ...host,
+            connections,
+            updatedAt: now,
+          }
+        : host;
+    });
+
+    if (!updated) {
+      throw new Error(`Connection token not found: ${connectionId}`);
+    }
+
+    this.setHostsAndSync(next);
+    await this.persistHosts();
+  }
+
   private async upsertHostConnection(input: {
     serverId: string;
     label?: string;
@@ -1966,6 +2076,8 @@ export interface HostMutations {
   renameHost: (serverId: string, label: string) => Promise<void>;
   removeHost: (serverId: string) => Promise<void>;
   removeConnection: (serverId: string, connectionId: string) => Promise<void>;
+  updateConnectionToken: (serverId: string, connectionId: string, token: string) => Promise<void>;
+  removeConnectionToken: (serverId: string, connectionId: string) => Promise<void>;
 }
 
 export function useHostMutations(): HostMutations {
@@ -1979,6 +2091,10 @@ export function useHostMutations(): HostMutations {
       renameHost: (serverId, label) => store.renameHost(serverId, label),
       removeHost: (serverId) => store.removeHost(serverId),
       removeConnection: (serverId, connectionId) => store.removeConnection(serverId, connectionId),
+      updateConnectionToken: (serverId, connectionId, token) =>
+        store.updateConnectionToken(serverId, connectionId, token),
+      removeConnectionToken: (serverId, connectionId) =>
+        store.removeConnectionToken(serverId, connectionId),
     }),
     [store],
   );
